@@ -56,6 +56,11 @@ public class AttributeBasedAuthenticator extends BasicAuthenticator {
                                                  HttpServletResponse response, AuthenticationContext context)
             throws AuthenticationFailedException {
 
+
+        boolean isAuthenticated;
+        UserStoreManager userStoreManager;
+        String internalUsername;
+
         authenticatingClaimUri = getAuthenticatorConfig().getParameterMap().get(
                 AttributeBasedAuthenticatorConstants.AUTHENTICATOR_PROPERTY_AUTHENTICATING_USERNAME_CLAIM);
 
@@ -74,8 +79,6 @@ public class AttributeBasedAuthenticator extends BasicAuthenticator {
 
         authProperties.put(PASSWORD_PROPERTY, password);
 
-        boolean isAuthenticated;
-        UserStoreManager userStoreManager;
         // Reset RE_CAPTCHA_USER_DOMAIN thread local variable before the authentication
         IdentityUtil.threadLocalProperties.get().remove(RE_CAPTCHA_USER_DOMAIN);
         // Check the authentication
@@ -86,9 +89,9 @@ public class AttributeBasedAuthenticator extends BasicAuthenticator {
             if (userRealm != null) {
                 userStoreManager = (UserStoreManager) userRealm.getUserStoreManager();
 
-                username = getUsernameFromEmail(username, userStoreManager);
+                internalUsername = getUsernameFromClaim(username, userStoreManager);
                 isAuthenticated = userStoreManager.
-                        authenticate(MultitenantUtils.getTenantAwareUsername(username), password);
+                        authenticate(MultitenantUtils.getTenantAwareUsername(internalUsername), password);
             } else {
                 throw new AuthenticationFailedException("Cannot find the user realm for the given tenant: " +
                         tenantId, User.getUserFromUserName(username));
@@ -110,20 +113,20 @@ public class AttributeBasedAuthenticator extends BasicAuthenticator {
                 log.debug("User authentication failed due to invalid credentials");
             }
             if (IdentityUtil.threadLocalProperties.get().get(RE_CAPTCHA_USER_DOMAIN) != null) {
-                username = IdentityUtil.addDomainToName(username, IdentityUtil.threadLocalProperties.get().get(RE_CAPTCHA_USER_DOMAIN)
+                internalUsername = IdentityUtil.addDomainToName(internalUsername, IdentityUtil.threadLocalProperties.get().get(RE_CAPTCHA_USER_DOMAIN)
                         .toString());
             }
             IdentityUtil.threadLocalProperties.get().remove(RE_CAPTCHA_USER_DOMAIN);
             throw new InvalidCredentialsException("User authentication failed due to invalid credentials",
-                    User.getUserFromUserName(username));
+                    User.getUserFromUserName(internalUsername));
         }
 
-        String tenantDomain = MultitenantUtils.getTenantDomain(username);
+        String tenantDomain = MultitenantUtils.getTenantDomain(internalUsername);
         authProperties.put("user-tenant-domain", tenantDomain);
 
-        username = FrameworkUtils.prependUserStoreDomainToName(username);
+        internalUsername = FrameworkUtils.prependUserStoreDomainToName(internalUsername);
 
-        context.setSubject(AuthenticatedUser.createLocalAuthenticatedUserFromSubjectIdentifier(username));
+        context.setSubject(AuthenticatedUser.createLocalAuthenticatedUserFromSubjectIdentifier(internalUsername));
 
         String rememberMe = request.getParameter("chkRemember");
         if ("on".equals(rememberMe)) {
@@ -131,31 +134,31 @@ public class AttributeBasedAuthenticator extends BasicAuthenticator {
         }
     }
 
-    private String getUsernameFromEmail(String email, UserStoreManager userStoreManager)
+    private String getUsernameFromClaim(String claimValue, UserStoreManager userStoreManager)
             throws UserStoreException, AuthenticationFailedException {
 
         String[] userList;
-        String tenantDomain = MultitenantUtils.getTenantDomain(email);
-        String tenantAwareUsername = MultitenantUtils.getTenantAwareUsername(email);
+        String tenantDomain = MultitenantUtils.getTenantDomain(claimValue);
+        String tenantAwareClaim = MultitenantUtils.getTenantAwareUsername(claimValue);
 
         if (log.isDebugEnabled()) {
-            log.info("Searching for a user with email address " + tenantAwareUsername + " and tenant domain " + tenantDomain);
+            log.info("Searching for a user with " + authenticatingClaimUri + ": " + tenantAwareClaim + " and tenant domain: " + tenantDomain);
         }
-        userList = userStoreManager.getUserList(authenticatingClaimUri, tenantAwareUsername,
+        userList = userStoreManager.getUserList(authenticatingClaimUri, tenantAwareClaim,
                 AttributeBasedAuthenticatorConstants.DEFAULT_PROFILE);
 
         if (userList == null || userList.length == 0) {
-            String errorMessage = "No user found with the provided email address " + email;
+            String errorMessage = "No user found with the provided " + authenticatingClaimUri + ": " + claimValue;
             log.error(errorMessage);
             throw new AuthenticationFailedException(errorMessage);
         } else if (userList.length == 1) {
             if (log.isDebugEnabled()) {
-                log.debug("Found single user " + userList[0] + " with the email address " + email);
+                log.debug("Found single user " + userList[0] + " with the " + authenticatingClaimUri + ": " + claimValue);
             }
             return userList[0] + "@" + tenantDomain;
         }
 
-        String errorMessage = "Multiple users exist with the same email address " + email + ". " + userList.toString();
+        String errorMessage = "Multiple users exist with the same email address " + claimValue + ". " + userList.toString();
         log.error(errorMessage);
         throw new AuthenticationFailedException(errorMessage);
     }
