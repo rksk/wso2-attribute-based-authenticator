@@ -1,5 +1,9 @@
 # Custom Basic Authenticator for attribute based authentication
 
+Update: Please find an improved version of this custom authenticator [here](https://github.com/rksk/wso2-multi-attribute-authenticator). The new one allows user to authenticate multple user identifiers like email, phone number at the same time. It identifies the entered identified based on pre-configured regex pattenrs.
+
+------
+
 This component was developed to allow users to use a user attribute (eg: email, phone number) as username when logging in
  with basic authentication instead of the immutable username which [WSO2 Identity Server](https://wso2.com/identity-and-access-management/) has by default.
  
