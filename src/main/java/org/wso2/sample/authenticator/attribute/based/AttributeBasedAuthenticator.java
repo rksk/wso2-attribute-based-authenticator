@@ -18,6 +18,8 @@
 
 package org.wso2.sample.authenticator.attribute.based;
 
+import org.wso2.carbon.identity.core.model.IdentityErrorMsgContext;
+import org.wso2.carbon.user.core.UserCoreConstants;
 import org.wso2.sample.authenticator.attribute.based.internal.AttributeBasedAuthenticatorServiceComponent;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -150,6 +152,13 @@ public class AttributeBasedAuthenticator extends BasicAuthenticator {
         if (userList == null || userList.length == 0) {
             String errorMessage = "No user found with the provided " + authenticatingClaimUri + ": " + claimValue;
             log.error(errorMessage);
+
+            if (isAuthPolicyAccountExistCheck()) {
+                IdentityErrorMsgContext identityErrorMsgContext = new IdentityErrorMsgContext(UserCoreConstants
+                        .ErrorCode.USER_DOES_NOT_EXIST);
+                IdentityUtil.setIdentityErrorMsg(identityErrorMsgContext);
+            }
+
             throw new AuthenticationFailedException(errorMessage);
         } else if (userList.length == 1) {
             if (log.isDebugEnabled()) {
@@ -163,6 +172,10 @@ public class AttributeBasedAuthenticator extends BasicAuthenticator {
         throw new AuthenticationFailedException(errorMessage);
     }
 
+    private boolean isAuthPolicyAccountExistCheck() {
+
+        return Boolean.parseBoolean(IdentityUtil.getProperty("AuthenticationPolicy.CheckAccountExist"));
+    }
 
     @Override
     public String getFriendlyName() {
